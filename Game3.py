@@ -1,9 +1,9 @@
 from typing import Any
 import random
-from Deck import Deck
 from Materials import GEMS, SETUP, AUCTIONS
 from Player import Player
 import bisect
+from Deck2 import Deck
 
 
 class Game:
