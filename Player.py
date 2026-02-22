@@ -15,7 +15,13 @@ class Player:
             max_bid += 10
         elif auction == 3:
             max_bid += 20
-        bid = random.randint(0, max_bid)
+
+        try:
+            bid = random.randint(0, max_bid)
+        except:
+            print(coins)
+            print(max_bid)
+            exit(1)
 
         return bid
 

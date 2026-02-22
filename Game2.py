@@ -1,8 +1,9 @@
 from typing import Any
-from random import random
+import random
 from Deck import Deck
 from Materials import GEMS, SETUP, AUCTIONS
 from Player import Player
+import bisect
 
 
 class Game:
@@ -16,7 +17,10 @@ class Game:
             },
             "auction": None,
             "gems": [],
-            "previous_auction_winner": None,
+            "last_auction": {
+                "bids": [],
+                "winner": None,
+            },
             "players": [
                 {
                     "model": players[i](i),
@@ -32,14 +36,17 @@ class Game:
                 for i in range(len(players))
             ],
         }
+        self.results = None
+
+        self.run()
 
     def run(self) -> dict:
         self.setup()
-        self.render()
+        # self.render()
         while not self.is_over():
             self.update()
-            self.render()
-        return self.teardown()
+            # self.render()
+        self.teardown()
 
     def setup(self) -> None:
         with open("log.txt", "w") as f:
@@ -47,6 +54,7 @@ class Game:
         lp = len(self.state["players"])
         self.state["decks"]["auctions"] = Deck(template=AUCTIONS)
         self.state["decks"]["gems"] = Deck(template=GEMS)
+
         # self.state["decks"]["gems"].shuffle()
 
         for i in range(lp):
@@ -62,12 +70,15 @@ class Game:
         bids = self._get_bids()
         winner = self._resolve_bids(bids)
         reveal = self._get_reveal(winner)
-        self.resolve_reveal(winner, reveal)
-        self.end_round()
+        self.end_round(winner, reveal)
 
         self.logs.append((bids, winner, reveal))
 
-    def end_round(self) -> None:
+    def end_round(self, winner, reveal) -> None:
+        if reveal is not None:
+            gem = self.state["players"][winner]["hands"]["private"].pop(reveal)
+            self.state["players"][winner]["hands"]["revealed"].append(gem)
+
         match self.state["auction"]:
             case 0:
                 if len(self.state["decks"]["gems"]) > 0:
@@ -100,14 +111,24 @@ class Game:
         return bids
 
     def _resolve_bids(self, bids: list[int]) -> int:
-        max_bid = max(bids)
-        winners = [i for i, bid in enumerate(bids) if bid == max_bid]
-        winner = winners[0] 
-        if len(winners != 1):
-            if self.state["previous_auction_winner"] = git init
-            winners = 
+        max_bid = float("-inf")
+        winners = []
+        for i, bid in enumerate(bids):
+            if bid > max_bid:
+                max_bid = bid
+                winners = [i]
+            elif bid == max_bid:
+                winners.append(i)
 
-        # winner = winners[int(random() * len(winners))]
+        if len(winners) == 1:
+            winner = winners[0]
+        elif self.state["last_auction"]["winner"] == None:
+            winner = random.choice(winners)
+        else:
+            winner = winners[
+                (bisect.bisect_left(winners, self.state["last_auction"]["winner"]) - 1)
+                % len(winners)
+            ]
 
         self.state["players"][winner]["coins"] -= max_bid
         match self.state["auction"]:
@@ -133,6 +154,9 @@ class Game:
             case 5:
                 self.state["players"][winner]["invests"] += max_bid + 10
 
+        # print(self.round + 1, bids, winner)
+
+        self.state["last_auction"] = {"bids": bids, "winner": winner}
         return winner
 
     def _get_reveal(self, i) -> int:
@@ -174,7 +198,7 @@ class Game:
 
         line = (
             f"{players_str}"
-            f"R{self.round} bids={bids:<16} rev={reveal:<1} winner={winner:<1} gems={gems.__repr__():<6} auc={auction:<1} gd={gd:>2} ad={ad:>2}\n"
+            f"R{self.round} bids={bids:<16} win={winner:<1} rev={reveal:<1} gems={gems.__repr__():<6} auc={auction:<1} gd={gd:>2} ad={ad:>2}\n"
         )
 
         with open("log.txt", "a") as f:
@@ -195,6 +219,18 @@ class Game:
         return {"rounds": self.round}
 
 
+import time
+
+
+def benchmark(seconds):
+    count = 0
+    end = time.time() + seconds
+    while time.time() < end:
+        Game(players=[Player, Player, Player, Player])
+        count += 1
+    print(f"{count} calls in {seconds} seconds ({count/seconds:.0f}/sec)")
+
+
 if __name__ == "__main__":
-    game = Game(players=[Player, Player, Player, Player])
-    result = game.run()
+    Game(players=[Player, Player, Player, Player])
+    benchmark(20)
