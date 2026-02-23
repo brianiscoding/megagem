@@ -1,38 +1,41 @@
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
-
-@dataclass
-class Hand:
-    private: list = field(default_factory=list)
-    revealed: list = field(default_factory=list)
-    received: list = field(default_factory=list)
-
-
-@dataclass
-class PlayerState:
-    model: object
-    coins: int = 0
-    loans: int = 0
-    invests: int = 0
-    hands: Hand = field(default_factory=Hand)
-
-
-@dataclass
-class Decks:
-    auctions: object = None
-    gems: object = None
+if TYPE_CHECKING:
+    from Player import Player
 
 
 @dataclass
 class LastAuction:
-    bids: list = field(default_factory=list)
-    winner: object = None
+    bids: list[int] = field(default_factory=list)
+    winner_id: int = None
+    reveal: int = None
 
 
 @dataclass
-class State:
-    decks: Decks = field(default_factory=Decks)
-    auction: object = None
-    gems: list = field(default_factory=list)
-    last_auction: LastAuction = field(default_factory=LastAuction)
-    players: list[PlayerState] = field(default_factory=list)
+class PlayerState:
+    model: "Player"
+    coins: int = 0
+    loans: int = 0
+    invests: int = 0
+    hand: list[int] = field(default_factory=list)
+    hand_mask: list[bool] = field(default_factory=list)
+    collection: list[int] = field(default_factory=list)
+
+
+@dataclass
+class ObservedPlayerState:
+    coins: int = 0
+    loans: int = 0
+    invests: int = 0
+    hand: list[int] = field(default_factory=list)
+    to_reveal: list[int] = field(default_factory=list)
+    collection: list[int] = field(default_factory=list)
+
+
+@dataclass
+class ObservedGameState:
+    auction: int
+    gems: list[int]
+    last_auction: LastAuction
+    players: list[PlayerState]

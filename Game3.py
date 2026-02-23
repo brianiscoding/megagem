@@ -1,185 +1,174 @@
-from typing import Any
 import random
 from Materials import GEMS, SETUP, AUCTIONS
-from Player import Player
 import bisect
 from Deck import Deck
+from Models import LastAuction, PlayerState, ObservedGameState, ObservedPlayerState
+from Player import Player
 
 
 class Game:
-    def __init__(self, players: list[Any]):
-        self.logs = [None]
+    def __init__(self, players: list[Player]):
         self.round = 0
-        self.state = {
-            "decks": {
-                "auctions": None,
-                "gems": None,
-            },
-            "auction": None,
-            "gems": [],
-            "last_auction": {
-                "bids": [],
-                "winner": None,
-            },
-            "players": [
-                {
-                    "model": players[i](i),
-                    "coins": 0,
-                    "loans": 0,
-                    "invests": 0,
-                    "hands": {
-                        "private": [],
-                        "revealed": [],
-                        "received": [],
-                    },
-                }
-                for i in range(len(players))
-            ],
-        }
-        self.results = None
+        self.deck_auction: Deck = None
+        self.deck_gem: Deck = None
+        self.auction: int = None
+        self.gems: list[int] = None
+        self.last_auction: LastAuction = None
+        self.players: list[Player] = [
+            PlayerState(model=players[i](i)) for i in range(len(players))
+        ]
 
+        self.logs = [None]
         self.run()
 
     def run(self) -> dict:
         self.setup()
+        # self.render()
         while not self.is_over():
             self.update()
+            # self.render()
+
         self.teardown()
 
     def setup(self) -> None:
-        lp = len(self.state["players"])
-        self.state["decks"]["auctions"] = Deck(template=AUCTIONS)
-        self.state["decks"]["gems"] = Deck(template=GEMS)
+        # with open("log.txt", "w") as f:
+        #     pass
+
+        lp = len(self.players)
+        self.deck_auction = Deck(template=AUCTIONS)
+        self.deck_gem = Deck(template=GEMS)
 
         for i in range(lp):
-            self.state["players"][i]["coins"] = SETUP[lp][0]
-            self.state["players"][i]["hands"]["private"] = [
-                self.state["decks"]["gems"].pop() for _ in range(SETUP[lp][1])
-            ]
+            self.players[i].coins = SETUP[lp][0]
+            self.players[i].hand = [self.deck_gem.pop() for _ in range(SETUP[lp][1])]
+            self.players[i].hand_mask = [False for _ in range(SETUP[lp][1])]
 
-        self.state["auction"] = self.state["decks"]["auctions"].pop()
-        self.state["gems"] = [self.state["decks"]["gems"].pop() for _ in range(2)]
+        self.auction = self.deck_auction.pop()
+        self.gems = [self.deck_gem.pop() for _ in range(2)]
 
     def update(self) -> None:
-        bids = self._get_bids()
-        winner = self._resolve_bids(bids)
-        reveal = self._get_reveal(winner)
-        self.end_round(winner, reveal)
+        self._phase_bid()
+        self._reveal_phase()
 
+        winner = self.last_auction.winner_id
+        bids = self.last_auction.bids
+        reveal = self.last_auction.reveal
         self.logs.append((bids, winner, reveal))
 
-    def _get_bids(self) -> int:
+    def _phase_bid(self) -> int:
         bids = []
-        auction = self.state["auction"]
+        auction = self.auction
 
-        for i, player in enumerate(self.state["players"]):
-            state = self.get_state(i)
-            bid = player["model"].make_bid(state)
-            max_bid = player["coins"] + (
-                10 if auction == 2 else 20 if auction == 3 else 0
-            )
+        for i, player in enumerate(self.players):
+            state = self.get_observed_game_state(i)
+            bid = player.model.make_bid(state)
+            max_bid = player.coins + (10 if auction == 2 else 20 if auction == 3 else 0)
             if bid < 0 or bid > max_bid:
-                raise ValueError(f"Player {i} made an invalid bid: {bid}")
+                raise
             bids.append(bid)
-        return bids
 
-    def _resolve_bids(self, bids: list[int]) -> int:
         max_bid = float("-inf")
-        winners = []
+        winner_ids = []
         for i, bid in enumerate(bids):
             if bid > max_bid:
                 max_bid = bid
-                winners = [i]
+                winner_ids = [i]
             elif bid == max_bid:
-                winners.append(i)
+                winner_ids.append(i)
 
-        if len(winners) == 1:
-            winner = winners[0]
-        elif self.state["last_auction"]["winner"] == None:
-            winner = random.choice(winners)
-        else:
-            winner = winners[
-                (bisect.bisect_left(winners, self.state["last_auction"]["winner"]) - 1)
-                % len(winners)
+        if len(winner_ids) == 1:
+            winner_id = winner_ids[0]
+        elif self.last_auction != None:
+            winner_id = winner_ids[
+                (bisect.bisect_left(winner_ids, self.last_auction.winner_id) - 1)
+                % len(winner_ids)
             ]
+        else:
+            winner_id = random.choice(winner_ids)
 
-        self.state["players"][winner]["coins"] -= max_bid
-        match self.state["auction"]:
+        match self.auction:
             case 0:
-                self._receive_gem(winner)
+                self.players[winner_id].coins -= max_bid
+                self._receive_gem(winner_id)
             case 1:
-                self._receive_gem(winner)
-                if len(self.state["gems"]) != 0:
-                    self._receive_gem(winner)
+                self.players[winner_id].coins -= max_bid
+                self._receive_gem(winner_id)
+                self._receive_gem(winner_id)
             case 2:
-                self.state["players"][winner]["loans"] += 10
-                self.state["players"][winner]["coins"] += 10
+                self.players[winner_id].loans += 10
+                self.players[winner_id].coins += 10 - max_bid
             case 3:
-                self.state["players"][winner]["loans"] += 20
-                self.state["players"][winner]["coins"] += 20
+                self.players[winner_id].loans += 20
+                self.players[winner_id].coins += 20 - max_bid
             case 4:
-                self.state["players"][winner]["invests"] += max_bid + 5
+                self.players[winner_id].coins -= max_bid
+                self.players[winner_id].invests += max_bid + 5
             case 5:
-                self.state["players"][winner]["invests"] += max_bid + 10
+                self.players[winner_id].coins -= max_bid
+                self.players[winner_id].invests += max_bid + 10
 
-        # print(self.round + 1, bids, winner)
-
-        self.state["last_auction"] = {"bids": bids, "winner": winner}
-        return winner
+        self.last_auction = LastAuction(bids=bids, winner_id=winner_id)
 
     def _receive_gem(self, i):
-        self.state["players"][i]["hands"]["received"].append(self.state["gems"].pop())
+        try:
+            gem = self.gems.pop()
+            self.players[i].collection.append(gem)
+        except:
+            pass
 
-    def _get_reveal(self, i) -> int:
-        if len(self.state["players"][i]["hands"]["private"]) == 0:
-            return None
-        player = self.state["players"][i]["model"]
-        state = self.get_state(i)
-        reveal = player.make_reveal(state)
-        if reveal < 0 or reveal >= len(self.state["players"][i]["hands"]["private"]):
-            raise ValueError(f"Player {i} made an invalid reveal: {reveal}")
-        return reveal
+    def _reveal_phase(self) -> int:
+        winner_id = self.last_auction.winner_id
+        if not all(self.players[winner_id].hand_mask):
+            player = self.players[winner_id].model
+            state = self.get_observed_game_state(winner_id)
+            reveal_i = player.make_reveal(state)
+            if (
+                not 0 <= reveal_i <= SETUP[len(self.players)][1]
+                or self.players[winner_id].hand_mask[reveal_i]
+            ):
+                raise
+            self.players[winner_id].hand_mask[reveal_i] = True
+            self.last_auction.reveal = self.players[winner_id].hand[reveal_i]
+        else:
+            self.last_auction.reveal = None
 
-    def end_round(self, winner, reveal) -> None:
-        if reveal is not None:
-            gem = self.state["players"][winner]["hands"]["private"].pop(reveal)
-            self.state["players"][winner]["hands"]["revealed"].append(gem)
-
-        match self.state["auction"]:
+        match self.auction:
             case 0:
                 self._draw_gem()
             case 1:
                 self._draw_gem()
                 self._draw_gem()
 
-        self.state["auction"] = self.state["decks"]["auctions"].pop()
+        self.auction = self.deck_auction.pop()
         self.round += 1
 
     def _draw_gem(self):
-        if len(self.state["decks"]["gems"]) <= 0:
-            return
-        self.state["gems"].insert(0, self.state["decks"]["gems"].pop())
+        try:
+            self.gems.insert(0, self.deck_gem.pop())
+        except:
+            pass
 
     def render(self):
         log = self.logs[-1]
-        s = self.state
 
         bids = str(log[0]) if log else ""
         winner = log[1] if log and log[1] is not None else ""
         reveal = log[2] if log and log[2] is not None else ""
-        gems = s["gems"]
-        auction = s["auction"]
-        gd = len(s["decks"]["gems"])
-        ad = len(s["decks"]["auctions"])
-        players = s["players"]
+        gems = self.gems
+        auction = self.auction
+        gd = len(self.deck_gem)
+        ad = len(self.deck_auction)
+        players = self.players
 
         players_str = ""
 
         for p in players:
-            players_str += f"{p['model'].id}: cs={p['coins']:<2} lo={p['loans']:<2} in={p['invests']:<2} "
-            players_str += f"pri={p['hands']['private'].__repr__():<12} "
-            players_str += f"rev={p['hands']['revealed'].__repr__():<12} "
-            players_str += f"rec={p['hands']['received']}\n"
+            players_str += (
+                f"{p.model.id}: cs={p.coins:<2} lo={p.loans:<2} in={p.invests:<2} "
+            )
+            players_str += f"hand={p.hand.__repr__():<12} "
+            players_str += f"pub={"".join("1" if x else "0" for x in p.hand_mask) } "
+            players_str += f"col={p.collection}\n"
 
         line = (
             f"{players_str}"
@@ -193,11 +182,48 @@ class Game:
         """Return True when the game loop should stop."""
         if self.round >= 100:
             return True
-        if len(self.state["gems"]) == 0 and len(self.state["decks"]["gems"]) == 0:
+        if len(self.gems) == 0 and len(self.deck_gem) == 0:
             return True
 
-    def get_state(self, i: int) -> dict:
-        return self.state
+    def get_observed_game_state(self, player_id: int) -> dict:
+        players = []
+        for curr_player_id, player in enumerate(self.players):
+            if curr_player_id == player_id:
+                players.append(
+                    ObservedPlayerState(
+                        coins=player.coins,
+                        loans=player.coins,
+                        invests=player.invests,
+                        hand=player.hand,
+                        to_reveal=[i for i, e in enumerate(player.hand_mask) if not e],
+                        collection=player.collection,
+                    )
+                )
+                continue
+
+            hand, to_reveal = [], []
+            for i, e in enumerate(player.hand_mask):
+                if e:
+                    hand.append(player.hand[i])
+                else:
+                    to_reveal.append(i)
+            players.append(
+                ObservedPlayerState(
+                    coins=player.coins,
+                    loans=player.coins,
+                    invests=player.invests,
+                    hand=hand,
+                    to_reveal=to_reveal,
+                    collection=player.collection,
+                )
+            )
+
+        return ObservedGameState(
+            auction=self.auction,
+            gems=self.gems,
+            players=players,
+            last_auction=self.last_auction,
+        )
 
     def teardown(self) -> dict:
         """Return any final results after the game ends. Override to customize."""

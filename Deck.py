@@ -5,14 +5,10 @@ random.seed(42)
 
 class Deck:
     def __init__(self, template):
-        self.cards = []
-        for i, count in enumerate(template):
-            self.cards.extend([i] * count)
+        self.cards = [i for i, count in enumerate(template) for _ in range(count)]
         random.shuffle(self.cards)
 
     def pop(self):
-        if not self.cards:
-            raise IndexError("Deck is empty")
         return self.cards.pop()
 
     def __len__(self):
