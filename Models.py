@@ -52,31 +52,30 @@ class ObservedPlayerState:
     def hand(self):
         if self._reveal_hand:
             return self._player.hand
-        return [
-            gem for gem, mask in zip(self._player.hand, self._player.hand_mask) if mask
-        ]
+        return [self._player_hand[i] for i, e in enumerate(self._player.hand_mask) if e]
 
 
 class ObservedGameState:
     def __init__(self, game, player_id: int):
         self._game = game
         self._player_id = player_id
+        self._players = [
+            ObservedPlayerState(p, reveal_hand=(i == self._player_id))
+            for i, p in enumerate(self._game._players)
+        ]
 
     @property
     def auction(self):
-        return self._game.auction
+        return self._game._auction
 
     @property
     def gems(self):
-        return self._game.gems
+        return self._game._gems
 
     @property
     def last_auction(self):
-        return self._game.last_auction
+        return self._game._last_auction
 
     @property
     def players(self):
-        return [
-            ObservedPlayerState(p, reveal_hand=(i == self._player_id))
-            for i, p in enumerate(self._game.players)
-        ]
+        return self._players
