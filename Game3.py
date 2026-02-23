@@ -189,34 +189,9 @@ class Game:
         players = []
         for curr_player_id, player in enumerate(self.players):
             if curr_player_id == player_id:
-                players.append(
-                    ObservedPlayerState(
-                        coins=player.coins,
-                        loans=player.coins,
-                        invests=player.invests,
-                        hand=player.hand,
-                        to_reveal=[i for i, e in enumerate(player.hand_mask) if not e],
-                        collection=player.collection,
-                    )
-                )
+                players.append(ObservedPlayerState(player=player, reveal_hand=True))
                 continue
-
-            hand, to_reveal = [], []
-            for i, e in enumerate(player.hand_mask):
-                if e:
-                    hand.append(player.hand[i])
-                else:
-                    to_reveal.append(i)
-            players.append(
-                ObservedPlayerState(
-                    coins=player.coins,
-                    loans=player.coins,
-                    invests=player.invests,
-                    hand=hand,
-                    to_reveal=to_reveal,
-                    collection=player.collection,
-                )
-            )
+            players.append(ObservedPlayerState(player=player))
 
         return ObservedGameState(
             auction=self.auction,
