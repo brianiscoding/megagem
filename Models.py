@@ -57,9 +57,26 @@ class ObservedPlayerState:
         ]
 
 
-@dataclass
 class ObservedGameState:
-    auction: int
-    gems: list[int]
-    last_auction: LastAuction
-    players: list[PlayerState]
+    def __init__(self, game, player_id: int):
+        self._game = game
+        self._player_id = player_id
+
+    @property
+    def auction(self):
+        return self._game.auction
+
+    @property
+    def gems(self):
+        return self._game.gems
+
+    @property
+    def last_auction(self):
+        return self._game.last_auction
+
+    @property
+    def players(self):
+        return [
+            ObservedPlayerState(p, reveal_hand=(i == self._player_id))
+            for i, p in enumerate(self._game.players)
+        ]

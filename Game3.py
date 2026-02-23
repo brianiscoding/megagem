@@ -186,19 +186,7 @@ class Game:
             return True
 
     def get_observed_game_state(self, player_id: int) -> dict:
-        players = []
-        for curr_player_id, player in enumerate(self.players):
-            if curr_player_id == player_id:
-                players.append(ObservedPlayerState(player=player, reveal_hand=True))
-                continue
-            players.append(ObservedPlayerState(player=player))
-
-        return ObservedGameState(
-            auction=self.auction,
-            gems=self.gems,
-            players=players,
-            last_auction=self.last_auction,
-        )
+        return ObservedGameState(game=self, player_id=player_id)
 
     def teardown(self) -> dict:
         """Return any final results after the game ends. Override to customize."""
