@@ -1,5 +1,5 @@
 import random
-from Materials import GEMS, SETUP, AUCTIONS
+from Materials import GEMS, SETUP, AUCTIONS, VALUE_CHART
 import bisect
 from Deck import Deck
 from Models import LastAuction, PlayerState, ObservedGameState
@@ -17,7 +17,7 @@ class Game:
         self._players: list[Player] = [
             PlayerState(model=players[i](i)) for i in range(len(players))
         ]
-
+        self.winners = []
         self.logs = [None]
         self._run()
 
@@ -36,8 +36,9 @@ class Game:
             self._players[i].coins = SETUP[lp][0]
             self._players[i].hand = [self._deck_gem.pop() for _ in range(SETUP[lp][1])]
             self._players[i].hand_mask = [False for _ in range(SETUP[lp][1])]
+            self._players[i].collection = [0 for _ in range(len(GEMS))]
 
-        self._auction = self._deck_auction.pop()
+        self._draw_auction()
         for _ in range(2):
             self._draw_gem()
 
@@ -130,7 +131,7 @@ class Game:
                 self._draw_gem()
                 self._draw_gem()
 
-        self._auction = self._deck_auction.pop()
+        self._draw_auction()
         self._round += 1
 
     def _is_over(self) -> bool:
@@ -140,7 +141,31 @@ class Game:
             return True
 
     def _teardown(self) -> None:
-        pass
+        gem_counts = [0 for _ in range(len(GEMS))]
+        for player in self._players:
+            for gem in player.hand:
+                gem_counts[gem] += 1
+        gem_values = [VALUE_CHART[count] for count in gem_counts]
+
+        max_score = float("-inf")
+        winner_ids = []
+        for i, player in enumerate(self._players):
+            score = (
+                sum(
+                    [
+                        gem_values[gem] * count
+                        for gem, count in enumerate(player.collection)
+                    ]
+                )
+                - player.loans
+                + player.invests
+            )
+            if score > max_score:
+                max_score = score
+                winner_ids = [i]
+            elif score == max_score:
+                winner_ids.append(i)
+        self.winners = winner_ids
 
     def _draw_gem(self) -> None:
         try:
@@ -151,6 +176,9 @@ class Game:
     def _receive_gem(self, i) -> None:
         try:
             gem = self._gems.pop()
-            self._players[i].collection.append(gem)
+            self._players[i].collection[gem] += 1
         except:
             pass
+
+    def _draw_auction(self) -> None:
+        self._auction = self._deck_auction.pop()
