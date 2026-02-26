@@ -1,9 +1,16 @@
+import random
+
+random.seed(42)
+
 import time
+
+from Materials import AUCTIONS, GEMS
+
+from Players import Player, RandomPlayer
 from Game import Game
-from Player import Player, RandomPlayer, SmartRandomPlayer
 
-
-players = [SmartRandomPlayer, RandomPlayer, RandomPlayer, RandomPlayer]
+# players = [Player, Player, Player, Player]
+players = [Player, Player, Player, RandomPlayer]
 
 
 def benchmark(seconds):
@@ -12,7 +19,9 @@ def benchmark(seconds):
 
     winner_freqs = [0 for _ in range(4)]
     while time.time() < end:
-        game = Game(players=players)
+        game = Game(
+            deck_auction_template=AUCTIONS, deck_gem_template=GEMS, players=players
+        )
         for id in game.winners:
             winner_freqs[id] += 1
         count += 1
@@ -21,7 +30,7 @@ def benchmark(seconds):
 
 
 if __name__ == "__main__":
-    # game = Game(players=players)
+    # game = Game(deck_auction_template=AUCTIONS, deck_gem_template=GEMS, players=players)
     # print(game.winners)
 
     benchmark(5)

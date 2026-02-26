@@ -68,5 +68,4 @@ logs
 # SQLite
 *.sqlite3
 
-# Archive or generated folders
-archive/
+
