@@ -8,9 +8,11 @@ from Materials import AUCTIONS, GEMS
 
 from Players import Player, RandomPlayer
 from Game import Game
+from ISMCTS import ISMCTS
+
 
 # players = [Player, Player, Player, Player]
-players = [Player, Player, Player, RandomPlayer]
+players = [ISMCTS, Player, Player, Player]
 
 
 def benchmark(seconds):
@@ -19,9 +21,11 @@ def benchmark(seconds):
 
     winner_freqs = [0 for _ in range(4)]
     while time.time() < end:
-        game = Game(
+        game = Game()
+        game.init(
             deck_auction_template=AUCTIONS, deck_gem_template=GEMS, players=players
         )
+        game.rollout()
         for id in game.winners:
             winner_freqs[id] += 1
         count += 1
@@ -29,9 +33,22 @@ def benchmark(seconds):
     print(f"{count} calls in {seconds} seconds ({count/seconds:.0f}/sec)")
 
 
-if __name__ == "__main__":
-    # game = Game(deck_auction_template=AUCTIONS, deck_gem_template=GEMS, players=players)
-    # print(game.winners)
+def pprint_players(ps):
+    for p in ps:
+        print(p.coins, p.loans, p.invests, p.collection)
+    print("+++++")
 
-    benchmark(5)
+
+if __name__ == "__main__":
+    game = Game()
+    game.init(deck_auction_template=AUCTIONS, deck_gem_template=GEMS, players=players)
+    while not game.winners:
+        game.play()
+        # pprint_players(game.players)
+    game.rollout()
+    # pprint_players(game.players)
+
+    print(game.winners)
+
+    # benchmark(5)
     pass

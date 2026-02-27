@@ -3,43 +3,49 @@ from Materials import GEMS, SETUP, AUCTIONS, VALUE_CHART
 from bisect import bisect_left
 from Models import LastAuction, ObservedState, PlayerState
 from copy import deepcopy
-from collections import Counter
 
 
 class Game:
-    def __init__(self):
+    def render(self):
+        return
+        print(self.deck_auction)
+        print(self.deck_gem)
+        input("+++++")
+        pass
+
+    def __init__(self, players, deck_auction_template, deck_gem_template):
+        #
         self.deck_auction = None
         self.deck_gem = None
         self.last_auction = None
         self.players = None
         self.winners = None
 
-    def init(self, players, deck_auction_template, deck_gem_template):
+        #
         self.deck_auction = self.create_deck(deck_auction_template)
         self.deck_gem = self.create_deck(deck_gem_template)
         self.last_auction = LastAuction()
-
         n = len(players)
         self.players = []
         for pid in range(n):
             hand = [self.deck_gem.pop() for _ in range(SETUP[n][1])]
-            # print(hand)
-            p = PlayerState(
-                model=players[pid](n, pid, hand[:]),
+            player = PlayerState(
+                model=players[pid](n, pid, deepcopy(hand)),
                 coins=SETUP[n][0],
                 hand=hand,
                 collection=[0 for _ in range(len(deck_gem_template))],
             )
-            self.players.append(p)
+            self.players.append(player)
 
-    def rollout(self):
-        while not self.ended():
+        #
+        self.render()
+        while True:
             self.play()
+            self.render()
+            if self.winners != None:
+                break
 
     def play(self):
-        if self.ended():
-            return
-
         # get bids
         state = ObservedState(
             auction=self.deck_auction[-1],
@@ -95,7 +101,7 @@ class Game:
                 self.players[wid].invests += max_bid + 10
 
         # check end
-        if not len(self.deck_gem):
+        if len(self.deck_gem) == 0:
             self.end()
             return
 
@@ -111,20 +117,12 @@ class Game:
 
         # update deck
         self.deck_auction.pop()
-        # print(
-        #     "   ",
-        #     [value for key, value in sorted(Counter(self.deck_auction).items())],
-        #     [value for key, value in sorted(Counter(self.deck_gem).items())],
-        # )
 
     def end(self):
-        if self.ended():
-            return
-
-        gem_counts = list(GEMS)
+        gem_counts = [0 for _ in range(len(GEMS))]
         for p in self.players:
-            for i, count in enumerate(p.collection):
-                gem_counts[i] -= count
+            for gem in p.hand:
+                gem_counts[gem] += 1
         gem_values = [VALUE_CHART[count] for count in gem_counts]
 
         max_score = float("-inf")
@@ -155,6 +153,3 @@ class Game:
         deck = [i for i, count in enumerate(template) for _ in range(count)]
         random.shuffle(deck)
         return deck
-
-    def ended(self):
-        return self.winners != None

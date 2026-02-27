@@ -15,7 +15,7 @@ class Player:
 
 
 class RandomPlayer(Player):
-    def __init__(self, num_players, player_id, hand):
+    def __init__(self, num_players, player_id, hand=None):
         super().__init__(num_players, player_id, hand)
 
         self.hand = hand
